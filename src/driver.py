@@ -15,7 +15,7 @@ import os
 import cv2
 
 class Driver():
-    def __init__(self, config, lr=1e-3):
+    def __init__(self, config, actor_lr=1e-3, critic_lr=1e-3):
         self.env = Environment(config=config)
         
         env = self.env
@@ -38,15 +38,23 @@ class Driver():
             aggregate=True
         )
         
-        self.optimizer = torch.optim.Adam(
-            list(self.actor.parameters()) + list(self.critic.parameters()) + 
-            list(self.actor_gnn.parameters()) + list(self.critic_gnn.parameters()),
-            lr=lr
+        self.optimizer_actor = torch.optim.Adam(
+            list(self.actor.parameters()) +
+            list(self.actor_gnn.parameters()),
+            lr=actor_lr
+        )
+        
+        self.optimizer_critic = torch.optim.Adam(
+            list(self.critic.parameters()) + 
+            list(self.critic_gnn.parameters()),
+            lr=critic_lr
         )
         
     def get_aggregated_information(self):
-        # Returns a matrix N * c, where N is the number of agents and 
-        # c is the aggregated vector dimension
+        # Returns two matrices N * c, where N is the number of agents and 
+        # c is the aggregated vector dimension. The first corresponds to 
+        # the ith vectors in the iths graph. The second correcponds to each
+        # aggregated vector for each graph.
         
         # X = []
         # for agent in self.agents:
@@ -109,7 +117,7 @@ class Driver():
                 # get action probabilities and take one action per agent (argmax)
                 action_logits = self.actor(actor_inputs)
                 dist = Categorical(logits=action_logits)
-                actions = dist.mode
+                actions = dist.sample()
                 log_prob = dist.log_prob(actions)
             
                 # get state values 
@@ -135,10 +143,10 @@ class Driver():
                 R = rewards[step] + gamma * R * masks[step]
                 returns.insert(0, R)
 
-            # Advantages are compute as the expected critic reward, and the actual 
-            # return computed in the environment. If an advantage is positive, it reduces 
-            # the loss, meaning that a good action was taken. If negative, they increase the 
-            # loss, meaning a bad action was chosen
+            # Advantages are computed as the expected critic reward, and the actual 
+            # return computed in the environment. If an advantage is positive, it increases 
+            # the loss, meaning that a good action was taken. If negative, they decrease the 
+            # loss, meaning a bad action was chosen. Here the loss is steepest ascent.
             returns = torch.cat(returns)
             advantages = returns - values
 
@@ -146,20 +154,23 @@ class Driver():
             actor_loss = -(log_probs * advantages.detach()).mean()
             # values and returns should have the same shape
             critic_loss = F.mse_loss(values.squeeze(), returns.detach())
-            loss = actor_loss + critic_loss
-
-            # Perform backpropagation
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-
+            
+            # backprop
+            self.optimizer_actor.zero_grad()
+            self.optimizer_critic.zero_grad()
+            
+            actor_loss.backward()
+            self.optimizer_actor.step()
+            
+            critic_loss.backward()
+            self.optimizer_critic.step()
+            
             # Logging and saving models
             if (episode+1) % eval_every == 0:
-                print(f"Episode: {episode+1}, Loss: {loss.item():.3f}")
+                print(f"Episode: {episode+1}, Value loss: {critic_loss.item():.3f}, Policy loss: {actor_loss.item():.3f}")
                 self.eval(
                     num_steps=num_steps,
                     run_name=run_name,
-                    randomize=randomize, 
                     render=False, 
                     load=False
                 )
@@ -168,7 +179,7 @@ class Driver():
                 self.save_models(run_name)
 
     
-    def eval(self, num_steps, run_name, randomize=False, render=False, load=False):
+    def eval(self, num_steps, run_name, render=False, load=False):
         env = self.env
         
         if load:
@@ -180,8 +191,8 @@ class Driver():
             if not os.path.exists(plotdir):
                 os.mkdir(plotdir)
 
-        # reset the environment with randomized settings (new agents positions)
-        env.reset(randomize=randomize)
+        # reset the environment with eval settings (new agents positions)
+        env.reset(eval=True)
         
         episode_collisions = 0
         total_rewards = 0
@@ -193,7 +204,7 @@ class Driver():
             actor_inputs = torch.cat((observations, actor_x_aggs), dim=1)
             action_logits = self.actor(actor_inputs)
             dist = Categorical(logits=action_logits)
-            actions = dist.mode
+            actions = dist.sample()
             
             rewards, dones, collisions = env.step(actions)
             

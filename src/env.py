@@ -21,10 +21,19 @@ class Environment:
         # self.max_distance = config.max_distance
         self.dim = config["dim"]
         self.agg_out_channels = config["agg_out_channels"]
+        self.n_random_initializations = config["n_random_initializations"]
+        
+        assert self.n_random_initializations >= 1
         
         self.generate_action_map()
         
-        self.init_entities()
+        (
+            self.original_agents_list,
+            self.original_goals_list,
+            self.original_obstacles_list,
+        ) = self.init_entities(self.n_random_initializations + 1)
+        # call reset to initialize agents
+        self.reset(randomize=True)
         
         self.fig, self.ax = None, None
 
@@ -40,7 +49,7 @@ class Environment:
 
 
     # initialize agents, goals, and obstacles positions
-    def init_entities(self):
+    def init_entities(self, N):
         def random_position():
             return torch.randint(0, self.grid_size, (self.dim,), dtype=torch.float)
         
@@ -50,51 +59,66 @@ class Environment:
                     return True
             return False
         
-        selected_positions = []
+        original_agents_list = []
+        original_goals_list = []
+        original_obstacles_list = []
         
-        # initialize agents
-        self.original_agents = []
-        for _ in range(self.num_agents):
-            while True:
-                position = random_position()
-                if not already_selected(position, selected_positions):
-                    break
-            self.original_agents.append(position)
-            selected_positions.append(position)
+        for _ in range(N):
+            selected_positions = []
+            
+            # initialize agents
+            original_agents = []
+            for _ in range(self.num_agents):
+                while True:
+                    position = random_position()
+                    if not already_selected(position, selected_positions):
+                        break
+                original_agents.append(position)
+                selected_positions.append(position)
 
-        # initialize goals
-        self.goals = []
-        for _ in range(self.num_agents):
-            while True:
-                position = random_position()
-                if not already_selected(position, selected_positions):
-                    break
-            self.goals.append(position)
-            selected_positions.append(position)
+            # initialize goals
+            goals = []
+            for _ in range(self.num_agents):
+                while True:
+                    position = random_position()
+                    if not already_selected(position, selected_positions):
+                        break
+                goals.append(position)
+                selected_positions.append(position)
 
-        # initialize obstacles
-        self.obstacles = []
-        for _ in range(torch.randint(1, self.max_obstacles+1, (1,))):
-            while True:
-                position = random_position()
-                if not already_selected(position, selected_positions):
-                    break
-            self.obstacles.append(position)
-            selected_positions.append(position)
+            # initialize obstacles
+            obstacles = []
+            for _ in range(torch.randint(1, self.max_obstacles+1, (1,))):
+                while True:
+                    position = random_position()
+                    if not already_selected(position, selected_positions):
+                        break
+                obstacles.append(position)
+                selected_positions.append(position)
+                
+            original_agents_list.append(original_agents)
+            original_goals_list.append(goals)
+            original_obstacles_list.append(obstacles)
         
-        # call reset to initialize agents
-        self.reset()
+        return original_agents_list, original_goals_list, original_obstacles_list
 
 
-    def reset(self, randomize=False):
+    def reset(self, randomize=False, eval=False):
         self.curr_step = 0
-        if randomize:
-            self.init_entities()
+        if eval:
+            agent_original_position_idx = self.n_random_initializations # last in the initialization settings
+        elif randomize:
+            self.random_agent_original_position = torch.randint(0, self.n_random_initializations, size=(1,))
+            agent_original_position_idx = self.random_agent_original_position
         else:
-            self.agents = [
-                Agent(position.detach().clone(), self.grid_size, dim=self.dim)  
-                for position in self.original_agents 
-            ]     
+            agent_original_position_idx = self.random_agent_original_position
+        
+        self.agents = [
+            Agent(position.detach().clone(), self.grid_size, dim=self.dim)  
+            for position in self.original_agents_list[agent_original_position_idx]
+        ]     
+        self.goals = self.original_goals_list[agent_original_position_idx]
+        self.obstacles = self.original_obstacles_list[agent_original_position_idx]
 
 
     def get_observations(self):

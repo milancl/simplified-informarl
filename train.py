@@ -17,13 +17,14 @@ if __name__ == "__main__":
     
     # env params
     num_agents       = 7
-    grid_size        = 30
+    grid_size        = 25
     sensing_radius   = 3
     max_obstacles    = 20
     dim              = 2
     goal_reward      = 5
     collision_reward = -5
     agg_out_channels = 32
+    n_random_initializations = 30
     
     config = {
         'num_agents': num_agents,
@@ -34,23 +35,26 @@ if __name__ == "__main__":
         'collision_reward': collision_reward,
         'dim': dim,
         'agg_out_channels': agg_out_channels,
+        'n_random_initializations': n_random_initializations
     }
     
-    lr = 1e-4
+    actor_lr = 1e-4
+    critic_lr = 1e-4
     
     driver = Driver(
         config=config,
-        lr=lr
+        actor_lr=actor_lr, 
+        critic_lr=critic_lr
     )
     
     # training params
-    episodes        = 10000
+    episodes        = 1000
     steps           = int(grid_size * 1.5) # set a number of step that allows agents to reach goal 
     randomize_every = episodes // 20
     eval_every      = episodes // 20
     save_models     = True
     save_every      = episodes // 5
-    gamma           = 0.8
+    gamma           = 0.9
     
     config["steps"] = steps
         
@@ -73,7 +77,6 @@ if __name__ == "__main__":
         run_name=run_name,
         render=True,
         load=False,
-        randomize=True
     )
     
     # eval(env)
