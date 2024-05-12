@@ -1,7 +1,6 @@
 import torch
 from torch_geometric.data import Data
 from torch_geometric.nn import MessagePassing, global_mean_pool
-import torch.nn.functional as F
 from torch_geometric.utils import softmax
 from torch import nn
 

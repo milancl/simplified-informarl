@@ -1,6 +1,9 @@
-from src.env import Environment
-from src.driver import Driver
+import yaml
+from src.runner import GraphRunner, MLPRunner
 import glob
+
+import os.path as osp
+from sys import argv
 
 
 def setup_rundir():
@@ -15,52 +18,64 @@ def setup_rundir():
 
 if __name__ == "__main__":
     
+    checkpoint = None
+    if len(argv) > 1:
+        checkpoint = argv[1]    
+    
     # env params
-    num_agents       = 7
-    grid_size        = 25
-    sensing_radius   = 3
-    max_obstacles    = 20
-    dim              = 2
-    goal_reward      = 5
-    collision_reward = -5
-    agg_out_channels = 32
-    n_random_initializations = 30
+    if checkpoint is None:
     
-    config = {
-        'num_agents': num_agents,
-        'grid_size': grid_size,
-        'sensing_radius': sensing_radius,
-        'max_obstacles': max_obstacles,
-        'goal_reward': goal_reward,
-        'collision_reward': collision_reward,
-        'dim': dim,
-        'agg_out_channels': agg_out_channels,
-        'n_random_initializations': n_random_initializations
-    }
+        num_agents       = 7
+        grid_size        = 25
+        sensing_radius   = 3
+        max_obstacles    = 20
+        dim              = 2
+        goal_reward      = 5
+        collision_reward = -5
+        agg_out_channels = 32
+        n_random_initializations = 30
+        
+        config = {
+            'num_agents': num_agents,
+            'grid_size': grid_size,
+            'sensing_radius': sensing_radius,
+            'max_obstacles': max_obstacles,
+            'goal_reward': goal_reward,
+            'collision_reward': collision_reward,
+            'dim': dim,
+            'agg_out_channels': agg_out_channels,
+            'n_random_initializations': n_random_initializations
+        }
+    else:
+        with open(osp.join("runs", checkpoint, "config.yaml"), 'r') as file:
+            config = yaml.safe_load(file)
+            
+    grid_size = config["grid_size"]
     
-    actor_lr = 1e-4
-    critic_lr = 1e-4
+    actor_lr = 1e-5
+    critic_lr = 1e-5
     
-    driver = Driver(
+    runner = GraphRunner(
         config=config,
         actor_lr=actor_lr, 
-        critic_lr=critic_lr
+        critic_lr=critic_lr,
     )
     
     # training params
-    episodes        = 1000
+    episodes        = 100
     steps           = int(grid_size * 1.5) # set a number of step that allows agents to reach goal 
-    randomize_every = episodes // 20
-    eval_every      = episodes // 20
+    randomize_every = episodes // 50
+    eval_every      = episodes // 30
+    train_log_every = episodes // 30
     save_models     = True
     save_every      = episodes // 5
-    gamma           = 0.9
+    gamma           = 0.8
     
     config["steps"] = steps
         
     run_name = setup_rundir()
     
-    driver.train(
+    runner.train(
         num_episodes=episodes, 
         num_steps=steps, 
         run_name=run_name, 
@@ -69,10 +84,12 @@ if __name__ == "__main__":
         save_models=save_models,
         save_every=save_every,
         randomize=True,
-        gamma=gamma
+        gamma=gamma,
+        checkpoint=checkpoint,
+        train_log_every=train_log_every
     )
     
-    driver.eval(
+    runner.eval(
         num_steps=steps,
         run_name=run_name,
         render=True,

@@ -1,4 +1,4 @@
-from src.driver import Driver 
+from src.runner import GraphRunner
 from sys import argv
 
 import yaml
@@ -15,11 +15,11 @@ if __name__ == "__main__":
     
     steps = config["steps"]
     
-    driver = Driver(
+    runner = GraphRunner(
         config=config,
     )
     
-    driver.eval(
+    runner.eval(
         num_steps=steps, 
         run_name=run_name, 
         render=True, 

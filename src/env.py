@@ -148,7 +148,7 @@ class Environment:
             else:
                 # negative reward based on goal distance
                 # rewards[i] -= min(dist, self.max_distance)
-                rewards[i] -= dist * 2 / self.grid_size
+                rewards[i] -= dist * 10 / self.grid_size
 
         # collision
         for i, agent_i in enumerate(self.agents):
