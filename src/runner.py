@@ -513,14 +513,14 @@ class MLPRunner(BaseRunner):
             
             rewards.append(reward)
             
-            total_rewards += rewards.sum().item()
+            total_rewards += reward.sum().item()
             episode_collisions += collisions
             
             if render:
                 env.render(plotdir=plotdir, title=f"Step: {s+1}/{num_steps}\n" + 
                                 f"Total collisions: {episode_collisions} -- Done: {int(dones.sum())}/{env.num_agents} agents")
         
-        rewards = torch.tensor(rewards)
+        rewards = torch.cat(rewards)
         
         print(f"\tEpisode reward: {total_rewards:.3f} -- Collisions: {episode_collisions} -- Done: {int(dones.sum())}/{env.num_agents} agents")
         
