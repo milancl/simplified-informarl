@@ -1,27 +1,25 @@
-from src.env import Environment    
+from src.driver import Driver 
+from sys import argv
+
+import yaml
+import os.path as osp
     
 if __name__ == "__main__":
+    if len(argv) < 2:
+        print("Run the program with '$ python evaluate.py <run_name>'")
+        exit(1)
     
-    # env params
-    num_agents     = 7
-    grid_size      = 25
-    sensing_radius = 3
-    max_obstacles  = 20
-    dim = 3
+    run_name = argv[1]
+    with open(osp.join("runs", run_name, "config.yaml"), 'r') as file:
+        config = yaml.safe_load(file)
     
-    steps           = grid_size * 2
+    steps = config["steps"]
     
-    env = Environment(
-        num_agents=num_agents, 
-        grid_size=grid_size,
-        sensing_radius=sensing_radius,
-        max_obstacles=max_obstacles,
-        dim=dim
+    driver = Driver(
+        config=config,
     )
     
-    run_name = "run_005"
-    
-    env.eval(
+    driver.eval(
         num_steps=steps, 
         run_name=run_name, 
         render=True, 
